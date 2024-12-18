@@ -1,78 +1,49 @@
-#!/usr/bin/env python3
-#
-# -*- coding: utf-8 -*-
-#  This program is free software; you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 of the License, or
-#  (at your option) any later version.
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with this program; if not, write to the Free Software
-#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-#  MA 02110-1301, USA.
-#
-#  Author: Mauro Soria
-
-import sys
-import warnings
-
-from lib.core.data import options
-from lib.core.exceptions import FailedDependenciesInstallation
-from lib.core.installation import check_dependencies, install_dependencies
-from lib.core.settings import OPTIONS_FILE
-from lib.parse.config import ConfigParser
-
-if sys.version_info < (3, 9):
-    sys.stderr.write("Sorry, dirsearch requires Python 3.9 or higher\n")
-    sys.exit(1)
-
-# silence pkg_resources deprecation warnings
-warnings.simplefilter("ignore", DeprecationWarning)
-from pkg_resources import DistributionNotFound, VersionConflict  # noqa: E402
+import setuptools
+import os
+import io
+import tempfile
+import shutil
 
 
-def main():
-    config = ConfigParser()
-    config.read(OPTIONS_FILE)
+current_dir = os.path.abspath(os.path.dirname(__file__))
+with io.open(os.path.join(current_dir, "README.md"), encoding="utf-8") as f:
+    desc = f.read()
 
-    if config.safe_getboolean("options", "check-dependencies", False):
-        try:
-            check_dependencies()
-        except (DistributionNotFound, VersionConflict):
-            option = input("Missing required dependencies to run.\n"
-                           "Do you want dirsearch to automatically install them? [Y/n] ")
+env_dir = tempfile.mkdtemp(prefix="dirsearch-install-")
+shutil.copytree(os.path.abspath(os.getcwd()),
+                os.path.join(env_dir, "dirsearch"))
 
-            if option.lower() == 'y':
-                print("Installing required dependencies...")
+os.chdir(env_dir)
 
-                try:
-                    install_dependencies()
-                except FailedDependenciesInstallation:
-                    sys.stderr.write("Failed to install dirsearch dependencies, try doing it manually.\n")
-                    sys.exit(1)
-            else:
-                # Do not check for dependencies in the future
-                config.set("options", "check-dependencies", "False")
+setuptools.setup(
+    name="dirsearch",
+    version="0.4.2",
+    author="Mauro Soria",
+    author_email="maurosoria@protonmail.com",
+    description="Advanced web path scanner",
+    long_description=desc,
+    long_description_content_type="text/markdown",
+    url="https://github.com/maurosoria/dirsearch",
+    packages=setuptools.find_packages(),
+    entry_points={
+        "console_scripts": ["dirsearch=dirsearch.dirsearch:Program"]
+    },
+    package_data={
+        "dirsearch": ["*", "db/*"]
+    },
+    include_package_data=True,
+    python_requires=">=3.7",
+    install_requires=["certifi>=2020.11.8", "chardet>=3.0.2", "urllib3>=1.21.1", "cryptography>=2.8", "PySocks>=1.6.8", "cffi>=1.14.0"],
+    classifiers=[
+        "Programming Language :: Python",
+        "Environment :: Console",
+        "Intended Audience :: Information Technology",
+        "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+        "Operating System :: OS Independent",
+        "Topic :: Security",
+        "Programming Language :: Python :: 3.7"
+    ],
+    keywords=["infosec", "bug bounty", "pentesting", "security"],
+)
 
-                with open(OPTIONS_FILE, "w") as fh:
-                    config.write(fh)
-
-    from lib.core.options import parse_options
-
-    options.update(parse_options())
-
-    from lib.controller.controller import Controller
-
-    Controller()
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        pass
+shutil.rmtree(env_dir, ignore_errors=True)
